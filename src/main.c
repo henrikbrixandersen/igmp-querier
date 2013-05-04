@@ -41,7 +41,7 @@ main(int argc, char **argv)
     int c, debug;
     libnet_t *l = NULL;
     libnet_ptag_t igmp, ipv4;
-    uint32_t mgroup, mgroup_all;
+    uint32_t mgroup, mgroup_all_hosts;
     char errbuf[LIBNET_ERRBUF_SIZE];
 
     while ((c = getopt(argc, argv, "dhv")) != -1) {
@@ -81,13 +81,6 @@ main(int argc, char **argv)
         goto fail;
     }
 
-    /* Resolve multicast group (All Hosts) */
-    mgroup_all = libnet_name2addr4(l, "224.0.0.1", LIBNET_DONT_RESOLVE);
-    if (mgroup_all == -1) {
-        fprintf(stderr, "Could not resolve multicast group 224.0.0.1: %s\n", libnet_geterror(l));
-        goto fail;
-    }
-
     /* Build IGMP membership query (layer 4) */
     igmp = libnet_build_igmp(IGMP_MEMBERSHIP_QUERY,
         0, 0, mgroup, NULL, 0, l, 0);
@@ -96,9 +89,16 @@ main(int argc, char **argv)
         goto fail;
     }
 
+    /* Resolve multicast group (All Hosts) */
+    mgroup_all_hosts = libnet_name2addr4(l, "224.0.0.1", LIBNET_DONT_RESOLVE);
+    if (mgroup_all_hosts == -1) {
+        fprintf(stderr, "Could not resolve multicast group 224.0.0.1: %s\n", libnet_geterror(l));
+        goto fail;
+    }
+
     /* Build IPv4 header (layer 3) */
     ipv4 = libnet_build_ipv4(LIBNET_IPV4_H + LIBNET_IGMP_H,
-        0, 0, 0, 64, IPPROTO_IGMP, 0, (uint32_t)0, mgroup_all, NULL, 0, l, 0);
+        0, 0, 0, 1, IPPROTO_IGMP, 0, (uint32_t)0, mgroup_all_hosts, NULL, 0, l, 0);
     if (ipv4 == -1) {
         fprintf(stderr, "Could not build IPv4 header: %s\n", libnet_geterror(l));
         goto fail;
