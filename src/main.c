@@ -29,58 +29,59 @@
 int
 main(int argc, char **argv)
 {
-	libnet_t *l = NULL;
-	libnet_ptag_t igmp, ipv4;
-	uint32_t mgroup, mgroup_all;
-	char errbuf[LIBNET_ERRBUF_SIZE];
+    int c;
+    libnet_t *l = NULL;
+    libnet_ptag_t igmp, ipv4;
+    uint32_t mgroup, mgroup_all;
+    char errbuf[LIBNET_ERRBUF_SIZE];
 
-	/* Initialize libnet */
-	l = libnet_init(LIBNET_RAW4, NULL, errbuf);
-	if (l == NULL) {
-		fprintf(stderr, "Could not initialize libnet: %s\n", errbuf);
-		exit(EXIT_FAILURE);
-	}
+    /* Initialize libnet */
+    l = libnet_init(LIBNET_RAW4, NULL, errbuf);
+    if (l == NULL) {
+        fprintf(stderr, "Could not initialize libnet: %s\n", errbuf);
+        exit(EXIT_FAILURE);
+    }
 
-	/* Resolve multicast group (General Query) */
-	mgroup = libnet_name2addr4(l, "0.0.0.0", LIBNET_DONT_RESOLVE);
-	if (mgroup == -1) {
-		fprintf(stderr, "Could not resolve multicast group 0.0.0.0: %s\n", libnet_geterror(l));
-		goto fail;
-	}
+    /* Resolve multicast group (General Query) */
+    mgroup = libnet_name2addr4(l, "0.0.0.0", LIBNET_DONT_RESOLVE);
+    if (mgroup == -1) {
+        fprintf(stderr, "Could not resolve multicast group 0.0.0.0: %s\n", libnet_geterror(l));
+        goto fail;
+    }
 
-	/* Resolve multicast group (All Hosts) */
-	mgroup_all = libnet_name2addr4(l, "224.0.0.1", LIBNET_DONT_RESOLVE);
-	if (mgroup_all == -1) {
-		fprintf(stderr, "Could not resolve multicast group 224.0.0.1: %s\n", libnet_geterror(l));
-		goto fail;
-	}
+    /* Resolve multicast group (All Hosts) */
+    mgroup_all = libnet_name2addr4(l, "224.0.0.1", LIBNET_DONT_RESOLVE);
+    if (mgroup_all == -1) {
+        fprintf(stderr, "Could not resolve multicast group 224.0.0.1: %s\n", libnet_geterror(l));
+        goto fail;
+    }
 
-	/* Build IGMP membership query (layer 4) */
-	igmp = libnet_build_igmp(IGMP_MEMBERSHIP_QUERY,
-	    0, 0, mgroup, NULL, 0, l, 0);
-	if (igmp == -1) {
-		fprintf(stderr, "Could not build IGMP packet: %s\n", libnet_geterror(l));
-		goto fail;
-	}
+    /* Build IGMP membership query (layer 4) */
+    igmp = libnet_build_igmp(IGMP_MEMBERSHIP_QUERY,
+        0, 0, mgroup, NULL, 0, l, 0);
+    if (igmp == -1) {
+        fprintf(stderr, "Could not build IGMP packet: %s\n", libnet_geterror(l));
+        goto fail;
+    }
 
-	/* Build IPv4 header (layer 3) */
-	ipv4 = libnet_build_ipv4(LIBNET_IPV4_H + LIBNET_IGMP_H,
-	    0, 0, 0, 64, IPPROTO_IGMP, 0, (uint32_t)0, mgroup_all, NULL, 0, l, 0);
-	if (ipv4 == -1) {
-		fprintf(stderr, "Could not build IPv4 header: %s\n", libnet_geterror(l));
-		goto fail;
-	}
+    /* Build IPv4 header (layer 3) */
+    ipv4 = libnet_build_ipv4(LIBNET_IPV4_H + LIBNET_IGMP_H,
+        0, 0, 0, 64, IPPROTO_IGMP, 0, (uint32_t)0, mgroup_all, NULL, 0, l, 0);
+    if (ipv4 == -1) {
+        fprintf(stderr, "Could not build IPv4 header: %s\n", libnet_geterror(l));
+        goto fail;
+    }
 
-	/* Transmit */
-	libnet_diag_dump_pblock(l);
-	if (libnet_write(l) == -1) {
-		fprintf(stderr, "Could not transmit IGMP packet: %s", libnet_geterror(l));
-		goto fail;
-	}
+    /* Transmit */
+    libnet_diag_dump_pblock(l);
+    if (libnet_write(l) == -1) {
+        fprintf(stderr, "Could not transmit IGMP packet: %s", libnet_geterror(l));
+        goto fail;
+    }
 
-	libnet_destroy(l);
-	exit(EXIT_SUCCESS);
+    libnet_destroy(l);
+    exit(EXIT_SUCCESS);
 fail:
-	libnet_destroy(l);
-	exit(EXIT_FAILURE);
+    libnet_destroy(l);
+    exit(EXIT_FAILURE);
 }
