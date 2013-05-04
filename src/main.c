@@ -24,16 +24,48 @@
  */
 
 #include <stdio.h>
+#include <unistd.h>
+
 #include <libnet.h>
+
+#define VERSION "0.1.0"
+
+void usage()
+{
+    printf("USAGE: igmp-querier [-dhv]\n");
+}
 
 int
 main(int argc, char **argv)
 {
-    int c;
+    int c, debug;
     libnet_t *l = NULL;
     libnet_ptag_t igmp, ipv4;
     uint32_t mgroup, mgroup_all;
     char errbuf[LIBNET_ERRBUF_SIZE];
+
+    while ((c = getopt(argc, argv, "dhv")) != -1) {
+        switch (c) {
+        case 'd':
+            debug = 1;
+            break;
+
+        case 'h':
+            usage();
+            exit(EXIT_SUCCESS);
+            break;
+
+        case 'v':
+            printf("%s\n", VERSION);
+            exit(EXIT_SUCCESS);
+            break;
+
+        default:
+            usage();
+            exit(EXIT_FAILURE);
+            break;
+        }
+    }
 
     /* Initialize libnet */
     l = libnet_init(LIBNET_RAW4, NULL, errbuf);
@@ -73,7 +105,9 @@ main(int argc, char **argv)
     }
 
     /* Transmit */
-    libnet_diag_dump_pblock(l);
+    if (debug) {
+        libnet_diag_dump_pblock(l);
+    }
     if (libnet_write(l) == -1) {
         fprintf(stderr, "Could not transmit IGMP packet: %s", libnet_geterror(l));
         goto fail;
