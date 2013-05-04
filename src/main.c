@@ -32,7 +32,7 @@
 
 void usage()
 {
-    printf("USAGE: igmp-querier [-dhv]\n");
+    printf("USAGE: igmp-querier [-d] [-h] [-v] [-g GROUP]\n");
 }
 
 int
@@ -44,10 +44,18 @@ main(int argc, char **argv)
     uint32_t mgroup, mgroup_all_hosts;
     char errbuf[LIBNET_ERRBUF_SIZE];
 
-    while ((c = getopt(argc, argv, "dhv")) != -1) {
+    while ((c = getopt(argc, argv, "dg:hv")) != -1) {
         switch (c) {
         case 'd':
             debug = 1;
+            break;
+
+        case 'g':
+            mgroup = libnet_name2addr4(l, optarg, LIBNET_DONT_RESOLVE);
+            if (mgroup == -1) {
+                fprintf(stderr, "Invalid multicast group '%s'\n", optarg);
+                exit(EXIT_FAILURE);
+            }
             break;
 
         case 'h':
@@ -74,13 +82,6 @@ main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    /* Resolve multicast group (General Query) */
-    mgroup = libnet_name2addr4(l, "0.0.0.0", LIBNET_DONT_RESOLVE);
-    if (mgroup == -1) {
-        fprintf(stderr, "Could not resolve multicast group 0.0.0.0: %s\n", libnet_geterror(l));
-        goto fail;
-    }
-
     /* Build IGMP membership query (layer 4) */
     igmp = libnet_build_igmp(IGMP_MEMBERSHIP_QUERY,
         0, 0, mgroup, NULL, 0, l, 0);
@@ -92,7 +93,7 @@ main(int argc, char **argv)
     /* Resolve multicast group (All Hosts) */
     mgroup_all_hosts = libnet_name2addr4(l, "224.0.0.1", LIBNET_DONT_RESOLVE);
     if (mgroup_all_hosts == -1) {
-        fprintf(stderr, "Could not resolve multicast group 224.0.0.1: %s\n", libnet_geterror(l));
+        fprintf(stderr, "Could not resolve multicast group 224.0.0.1\n");
         goto fail;
     }
 
