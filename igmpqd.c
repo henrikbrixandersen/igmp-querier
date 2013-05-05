@@ -23,31 +23,58 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <errno.h>
+#include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include <libnet.h>
 
 #define VERSION "0.1.0"
 
-void usage()
+void
+usage(char *command)
 {
-    printf("USAGE: igmp-querier [-d] [-h] [-v] [-m MGROUP]\n");
+    printf("usage: %s [-d] [-h] [-v] [-m MGROUP] [-u USER] [-g GROUP] [-i INTERVAL]\n",
+        command);
 }
 
 int
 main(int argc, char **argv)
 {
     int c, debug;
+    long interval;
+    char *endptr = NULL, *user = NULL, *group = NULL;
     libnet_t *l = NULL;
     libnet_ptag_t igmp, ipv4;
     uint32_t mgroup, mgroup_all_hosts;
     char errbuf[LIBNET_ERRBUF_SIZE];
 
-    while ((c = getopt(argc, argv, "dm:hv")) != -1) {
+    while ((c = getopt(argc, argv, "dg:hi:m:u:v")) != -1) {
         switch (c) {
         case 'd':
             debug = 1;
+            break;
+
+        case 'g':
+            group = optarg;
+            break;
+
+        case 'h':
+            usage(argv[0]);
+            exit(EXIT_SUCCESS);
+            break;
+
+        case 'i':
+            errno = 0;
+            interval = strtol(optarg, &endptr, 10);
+            if (*endptr != '\0' || interval <= 0 ||
+                (errno == ERANGE && (interval == LONG_MAX || interval == LONG_MIN)) ||
+                (errno != 0 && interval == 0)) {
+                fprintf(stderr, "Invalid interval '%s'\n", optarg);
+                exit(EXIT_FAILURE);
+            }
             break;
 
         case 'm':
@@ -58,9 +85,8 @@ main(int argc, char **argv)
             }
             break;
 
-        case 'h':
-            usage();
-            exit(EXIT_SUCCESS);
+        case 'u':
+            user = optarg;
             break;
 
         case 'v':
@@ -69,10 +95,16 @@ main(int argc, char **argv)
             break;
 
         default:
-            usage();
+            usage(argv[0]);
             exit(EXIT_FAILURE);
             break;
         }
+    }
+
+    /* Ensure no extra command line parameters were given */
+    if (argc != optind) {
+        usage(argv[0]);
+        exit(EXIT_FAILURE);
     }
 
     /* Initialize libnet */
