@@ -1,7 +1,7 @@
-SHELL = /bin/sh
+SHELL=/bin/sh
 
-BINARY=src/igmp-querier
-SRCS=src/main.c
+BINARY=igmpqd
+SRCS=igmpqd.c
 
 all: $(BINARY)
 
