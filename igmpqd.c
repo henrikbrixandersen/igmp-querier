@@ -32,7 +32,7 @@
 
 void usage()
 {
-    printf("USAGE: igmp-querier [-d] [-h] [-v] [-g GROUP]\n");
+    printf("USAGE: igmp-querier [-d] [-h] [-v] [-m MGROUP]\n");
 }
 
 int
@@ -44,13 +44,13 @@ main(int argc, char **argv)
     uint32_t mgroup, mgroup_all_hosts;
     char errbuf[LIBNET_ERRBUF_SIZE];
 
-    while ((c = getopt(argc, argv, "dg:hv")) != -1) {
+    while ((c = getopt(argc, argv, "dm:hv")) != -1) {
         switch (c) {
         case 'd':
             debug = 1;
             break;
 
-        case 'g':
+        case 'm':
             mgroup = libnet_name2addr4(l, optarg, LIBNET_DONT_RESOLVE);
             if (mgroup == -1) {
                 fprintf(stderr, "Invalid multicast group '%s'\n", optarg);
