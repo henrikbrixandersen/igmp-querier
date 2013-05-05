@@ -25,6 +25,8 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <grp.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -44,11 +46,15 @@ int
 main(int argc, char **argv)
 {
     int c, debug;
-    long interval;
-    char *endptr = NULL, *user = NULL, *group = NULL;
+    long interval = 60;
+    char *endptr = NULL, *username = NULL, *groupname = NULL;
+    uid_t uid;
+    gid_t gid;
+    struct passwd *passwd = NULL;
+    struct group *group = NULL;
     libnet_t *l = NULL;
     libnet_ptag_t igmp, ipv4;
-    uint32_t mgroup, mgroup_all_hosts;
+    uint32_t mgroup, dst;
     char errbuf[LIBNET_ERRBUF_SIZE];
 
     while ((c = getopt(argc, argv, "dg:hi:m:u:v")) != -1) {
@@ -58,7 +64,18 @@ main(int argc, char **argv)
             break;
 
         case 'g':
-            group = optarg;
+            errno = 0;
+            groupname = optarg;
+            group = getgrnam(groupname);
+            if (group == NULL) {
+                if (errno) {
+                    fprintf(stderr, "Could not get GID for group '%s': %s\n", groupname, strerror(errno));
+                } else {
+                    fprintf(stderr, "Can not drop privileges to nonexistent group '%s'\n", groupname);
+                }
+                exit(EXIT_FAILURE);
+            }
+            gid = group->gr_gid;
             break;
 
         case 'h':
@@ -86,7 +103,18 @@ main(int argc, char **argv)
             break;
 
         case 'u':
-            user = optarg;
+            errno = 0;
+            username = optarg;
+            passwd = getpwnam(username);
+            if (passwd == NULL) {
+                if (errno) {
+                    fprintf(stderr, "Could not get GID for user '%s': %s\n", username, strerror(errno));
+                } else {
+                    fprintf(stderr, "Can not drop privileges to nonexistent user '%s'\n", username);
+                }
+                exit(EXIT_FAILURE);
+            }
+            uid = passwd->pw_uid;
             break;
 
         case 'v':
@@ -114,36 +142,58 @@ main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+    /* Drop privileges */
+    if (groupname != NULL) {
+        if (setgid(gid) != 0) {
+            fprintf(stderr, "Could not drop privileges to group '%s' (GID %d): %s\n",
+                groupname, gid, strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+    }
+    if (username != NULL) {
+        if (setuid(uid) != 0) {
+            fprintf(stderr, "Could not drop priveleges to user '%s' (UID %d): %s\n",
+                username, uid, strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+    }
+
     /* Build IGMP membership query (layer 4) */
-    igmp = libnet_build_igmp(IGMP_MEMBERSHIP_QUERY,
-        0, 0, mgroup, NULL, 0, l, 0);
+    igmp = libnet_build_igmp(IGMP_MEMBERSHIP_QUERY, 0, 0, mgroup, NULL, 0, l, 0);
     if (igmp == -1) {
         fprintf(stderr, "Could not build IGMP packet: %s\n", libnet_geterror(l));
         goto fail;
     }
 
-    /* Resolve multicast group (All Hosts) */
-    mgroup_all_hosts = libnet_name2addr4(l, "224.0.0.1", LIBNET_DONT_RESOLVE);
-    if (mgroup_all_hosts == -1) {
+    /* Resolve destination multicast group (All Hosts) */
+    dst = libnet_name2addr4(l, "224.0.0.1", LIBNET_DONT_RESOLVE);
+    if (dst == -1) {
         fprintf(stderr, "Could not resolve multicast group 224.0.0.1\n");
         goto fail;
     }
 
     /* Build IPv4 header (layer 3) */
     ipv4 = libnet_build_ipv4(LIBNET_IPV4_H + LIBNET_IGMP_H,
-        0, 0, 0, 1, IPPROTO_IGMP, 0, (uint32_t)0, mgroup_all_hosts, NULL, 0, l, 0);
+        0, 0, 0, 1, IPPROTO_IGMP, 0, (uint32_t)0, dst, NULL, 0, l, 0);
     if (ipv4 == -1) {
         fprintf(stderr, "Could not build IPv4 header: %s\n", libnet_geterror(l));
         goto fail;
     }
 
-    /* Transmit */
-    if (debug) {
-        libnet_diag_dump_pblock(l);
-    }
-    if (libnet_write(l) == -1) {
-        fprintf(stderr, "Could not transmit IGMP packet: %s", libnet_geterror(l));
-        goto fail;
+    /* TODO: daemonize */
+
+    while (1) {
+        /* Transmit */
+        if (debug) {
+            libnet_diag_dump_pblock(l);
+        }
+        if (libnet_write(l) == -1) {
+            fprintf(stderr, "Could not transmit IGMP packet: %s", libnet_geterror(l));
+            /* TODO: Just log and carry on here? */
+            goto fail;
+        }
+
+        sleep(interval);
     }
 
     libnet_destroy(l);
