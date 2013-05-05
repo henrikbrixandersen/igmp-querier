@@ -45,7 +45,7 @@ usage(char *command)
 int
 main(int argc, char **argv)
 {
-    int c, debug;
+    int c, debug = 0;
     long interval = 60;
     char *endptr = NULL, *username = NULL, *groupname = NULL;
     uid_t uid;
@@ -54,7 +54,7 @@ main(int argc, char **argv)
     struct group *group = NULL;
     libnet_t *l = NULL;
     libnet_ptag_t igmp, ipv4;
-    uint32_t mgroup, dst;
+    uint32_t mgroup = 0, dst;
     char errbuf[LIBNET_ERRBUF_SIZE];
 
     while ((c = getopt(argc, argv, "dg:hi:m:u:v")) != -1) {
