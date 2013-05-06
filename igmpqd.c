@@ -38,14 +38,14 @@
 void
 usage(char *command)
 {
-    printf("usage: %s [-d] [-h] [-v] [-m MGROUP] [-u USER] [-g GROUP] [-i INTERVAL]\n",
+    printf("usage: %s [-d] [-f] [-h] [-v] [-m MGROUP] [-u USER] [-g GROUP] [-i INTERVAL]\n",
         command);
 }
 
 int
 main(int argc, char **argv)
 {
-    int c, debug = 0;
+    int c, debug = 0, i;
     long interval = 60;
     char *endptr = NULL, *username = NULL, *groupname = NULL;
     uid_t uid;
@@ -55,12 +55,18 @@ main(int argc, char **argv)
     libnet_t *l = NULL;
     libnet_ptag_t igmp, ipv4;
     uint32_t mgroup = 0, dst;
+    int daemonize = 1;
+    pid_t pid;
     char errbuf[LIBNET_ERRBUF_SIZE];
 
-    while ((c = getopt(argc, argv, "dg:hi:m:u:v")) != -1) {
+    while ((c = getopt(argc, argv, "dfg:hi:m:u:v")) != -1) {
         switch (c) {
         case 'd':
             debug = 1;
+            break;
+
+        case 'f':
+            daemonize = 0;
             break;
 
         case 'g':
@@ -180,7 +186,33 @@ main(int argc, char **argv)
         goto fail;
     }
 
-    /* TODO: daemonize */
+    /* Daemonize */
+    if (daemonize) {
+        errno = 0;
+        pid = fork();
+        if (pid < 0) {
+            fprintf(stderr, "Could not create child process: %s", strerror(errno));
+            goto fail;
+        } else if (pid > 0) {
+            if (debug) {
+                printf("Created child process with PID %d\n", pid);
+            }
+            exit(EXIT_SUCCESS);
+        }
+
+        setsid();
+
+        /* TODO: Close FDs */
+        /*printf("size: %d\n", getdtablesize());
+        for (i = getdtablesize(); i >= 0; --i) {
+            close(i);
+        }
+        i = open("/dev/null", O_RDWR);
+        dup(i);
+        dup(i); */
+        umask(027);
+        chdir("/");
+    }
 
     while (1) {
         /* Transmit */
