@@ -205,14 +205,13 @@ main(int argc, char **argv)
             exit(EXIT_FAILURE);
         }
 
-        /* TODO: Close FDs */
-        /*printf("size: %d\n", getdtablesize());
-        for (i = getdtablesize(); i >= 0; --i) {
-            close(i);
-        }
+        close(STDIN_FILENO);
+        close(STDOUT_FILENO);
+        close(STDERR_FILENO);
         i = open("/dev/null", O_RDWR);
         dup(i);
-        dup(i); */
+        dup(i);
+
         umask(027);
         chdir("/");
     }
