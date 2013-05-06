@@ -189,7 +189,6 @@ main(int argc, char **argv)
 
     /* Daemonize */
     if (daemonize) {
-        errno = 0;
         pid = fork();
         if (pid < 0) {
             fprintf(stderr, "Could not create child process: %s", strerror(errno));
