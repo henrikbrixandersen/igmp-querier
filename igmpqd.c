@@ -76,9 +76,9 @@ main(int argc, char **argv)
             group = getgrnam(groupname);
             if (group == NULL) {
                 if (errno) {
-                    fprintf(stderr, "Could not get GID for group '%s': %s\n", groupname, strerror(errno));
+                    fprintf(stderr, "Error: Could not get GID for group '%s': %s\n", groupname, strerror(errno));
                 } else {
-                    fprintf(stderr, "Can not drop privileges to nonexistent group '%s'\n", groupname);
+                    fprintf(stderr, "Error: Can not drop privileges to nonexistent group '%s'\n", groupname);
                 }
                 exit(EXIT_FAILURE);
             }
@@ -96,7 +96,7 @@ main(int argc, char **argv)
             if (*endptr != '\0' || interval <= 0 ||
                 (errno == ERANGE && (interval == LONG_MAX || interval == LONG_MIN)) ||
                 (errno != 0 && interval == 0)) {
-                fprintf(stderr, "Invalid interval '%s'\n", optarg);
+                fprintf(stderr, "Error: Invalid interval '%s'\n", optarg);
                 exit(EXIT_FAILURE);
             }
             break;
@@ -105,7 +105,7 @@ main(int argc, char **argv)
             mgroup = libnet_name2addr4(l, optarg, LIBNET_DONT_RESOLVE);
             network = libnet_name2addr4(l, "224.0.0.0", LIBNET_DONT_RESOLVE);
             if (mgroup == -1 || (mgroup & network) != network) {
-                fprintf(stderr, "Invalid multicast group '%s'\n", optarg);
+                fprintf(stderr, "Error: Invalid multicast group '%s'\n", optarg);
                 exit(EXIT_FAILURE);
             }
             break;
@@ -116,9 +116,9 @@ main(int argc, char **argv)
             passwd = getpwnam(username);
             if (passwd == NULL) {
                 if (errno) {
-                    fprintf(stderr, "Could not get GID for user '%s': %s\n", username, strerror(errno));
+                    fprintf(stderr, "Error: Could not get GID for user '%s': %s\n", username, strerror(errno));
                 } else {
-                    fprintf(stderr, "Can not drop privileges to nonexistent user '%s'\n", username);
+                    fprintf(stderr, "Error: Can not drop privileges to nonexistent user '%s'\n", username);
                 }
                 exit(EXIT_FAILURE);
             }
@@ -146,21 +146,21 @@ main(int argc, char **argv)
     /* Initialize libnet */
     l = libnet_init(LIBNET_RAW4, NULL, errbuf);
     if (l == NULL) {
-        fprintf(stderr, "Could not initialize libnet: %s\n", errbuf);
+        fprintf(stderr, "Error: Could not initialize libnet: %s\n", errbuf);
         exit(EXIT_FAILURE);
     }
 
     /* Drop privileges */
     if (groupname != NULL) {
         if (setgid(gid) != 0) {
-            fprintf(stderr, "Could not drop privileges to group '%s' (GID %d): %s\n",
+            fprintf(stderr, "Error: Could not drop privileges to group '%s' (GID %d): %s\n",
                 groupname, gid, strerror(errno));
             goto fail;
         }
     }
     if (username != NULL) {
         if (setuid(uid) != 0) {
-            fprintf(stderr, "Could not drop priveleges to user '%s' (UID %d): %s\n",
+            fprintf(stderr, "Error: Could not drop priveleges to user '%s' (UID %d): %s\n",
                 username, uid, strerror(errno));
             goto fail;
         }
@@ -169,14 +169,14 @@ main(int argc, char **argv)
     /* Build IGMP membership query (layer 4) */
     igmp = libnet_build_igmp(IGMP_MEMBERSHIP_QUERY, 0, 0, mgroup, NULL, 0, l, 0);
     if (igmp == -1) {
-        fprintf(stderr, "Could not build IGMP packet: %s\n", libnet_geterror(l));
+        fprintf(stderr, "Error: Could not build IGMP packet: %s\n", libnet_geterror(l));
         goto fail;
     }
 
     /* Resolve destination multicast group (All Hosts) */
     dst = libnet_name2addr4(l, "224.0.0.1", LIBNET_DONT_RESOLVE);
     if (dst == -1) {
-        fprintf(stderr, "Could not resolve multicast group 224.0.0.1\n");
+        fprintf(stderr, "Error: Could not resolve multicast group 224.0.0.1\n");
         goto fail;
     }
 
@@ -184,7 +184,7 @@ main(int argc, char **argv)
     ipv4 = libnet_build_ipv4(LIBNET_IPV4_H + LIBNET_IGMP_H,
         0, 0, 0, 1, IPPROTO_IGMP, 0, (uint32_t)0, dst, NULL, 0, l, 0);
     if (ipv4 == -1) {
-        fprintf(stderr, "Could not build IPv4 header: %s\n", libnet_geterror(l));
+        fprintf(stderr, "Error: Could not build IPv4 header: %s\n", libnet_geterror(l));
         goto fail;
     }
 
@@ -192,7 +192,7 @@ main(int argc, char **argv)
     if (daemonize) {
         pid = fork();
         if (pid < 0) {
-            fprintf(stderr, "Could not create child process: %s", strerror(errno));
+            fprintf(stderr, "Error: Could not create child process: %s", strerror(errno));
             goto fail;
         } else if (pid > 0) {
             if (debug) {
@@ -202,13 +202,13 @@ main(int argc, char **argv)
         }
 
         if (setsid() < 0) {
-            fprintf(stderr, "Could not create new session: %s\n", strerror(errno));
+            fprintf(stderr, "Error: Could not create new session: %s\n", strerror(errno));
             goto fail;
         }
 
         pid = fork();
         if (pid < 0) {
-            fprintf(stderr, "Could not create grandchild process: %s", strerror(errno));
+            fprintf(stderr, "Error: Could not create grandchild process: %s", strerror(errno));
             goto fail;
         } else if (pid > 0) {
             if (debug) {
@@ -218,7 +218,7 @@ main(int argc, char **argv)
         }
 
         if (chdir("/") != 0) {
-            fprintf(stderr, "Could not change directory to '/': %s\n", strerror(errno));
+            fprintf(stderr, "Error: Could not change directory to '/': %s\n", strerror(errno));
             goto fail;
         }
 
@@ -238,7 +238,7 @@ main(int argc, char **argv)
             libnet_diag_dump_pblock(l);
         }
         if (libnet_write(l) == -1) {
-            fprintf(stderr, "Could not transmit IGMP packet: %s", libnet_geterror(l));
+            fprintf(stderr, "Error: Could not transmit IGMP packet: %s", libnet_geterror(l));
             /* TODO: Just log and carry on here? */
             goto fail;
         }
