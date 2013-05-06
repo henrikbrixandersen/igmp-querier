@@ -104,7 +104,7 @@ main(int argc, char **argv)
         case 'm':
             mgroup = libnet_name2addr4(l, optarg, LIBNET_DONT_RESOLVE);
             network = libnet_name2addr4(l, "224.0.0.0", LIBNET_DONT_RESOLVE);
-            if (mgroup == -1 || (mgroup & network) != network) {
+            if (mgroup == -1 || network == -1 || (mgroup & network) != network) {
                 fprintf(stderr, "Error: Invalid multicast group '%s'\n", optarg);
                 exit(EXIT_FAILURE);
             }
