@@ -9,7 +9,7 @@ Features:
 - General Query support
 - Group-Specific Query support
 - Query interval setting
-- Ability to drop root priveleges after initialization
+- Ability to drop root privileges after initialization
 
 Dependencies:
 - libnet
