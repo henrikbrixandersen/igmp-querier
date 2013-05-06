@@ -55,7 +55,7 @@ main(int argc, char **argv)
     struct group *group = NULL;
     libnet_t *l = NULL;
     libnet_ptag_t igmp, ipv4;
-    uint32_t mgroup = 0, dst;
+    uint32_t mgroup = 0, network, dst;
     int daemonize = 1;
     pid_t pid;
     char errbuf[LIBNET_ERRBUF_SIZE];
@@ -103,7 +103,8 @@ main(int argc, char **argv)
 
         case 'm':
             mgroup = libnet_name2addr4(l, optarg, LIBNET_DONT_RESOLVE);
-            if (mgroup == -1) {
+            network = libnet_name2addr4(l, "224.0.0.0", LIBNET_DONT_RESOLVE);
+            if (mgroup == -1 || (mgroup & network) != network) {
                 fprintf(stderr, "Invalid multicast group '%s'\n", optarg);
                 exit(EXIT_FAILURE);
             }
