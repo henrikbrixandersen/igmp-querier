@@ -205,6 +205,17 @@ main(int argc, char **argv)
             exit(EXIT_FAILURE);
         }
 
+        pid = fork();
+        if (pid < 0) {
+            fprintf(stderr, "Could not create grandchild process: %s", strerror(errno));
+            goto fail;
+        } else if (pid > 0) {
+            if (debug) {
+                printf("Created grandchild process with PID %d\n", pid);
+            }
+            exit(EXIT_SUCCESS);
+        }
+
         if (chdir("/") != 0) {
             fprintf(stderr, "Could not change directory to '/': %s\n", strerror(errno));
             exit(EXIT_FAILURE);
