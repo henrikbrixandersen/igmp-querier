@@ -200,7 +200,10 @@ main(int argc, char **argv)
             exit(EXIT_SUCCESS);
         }
 
-        setsid();
+        if (setsid() < 0) {
+            fprintf(stderr, "Could not create new session: %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
 
         /* TODO: Close FDs */
         /*printf("size: %d\n", getdtablesize());
