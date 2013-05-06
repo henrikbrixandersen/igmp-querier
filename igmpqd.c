@@ -155,14 +155,14 @@ main(int argc, char **argv)
         if (setgid(gid) != 0) {
             fprintf(stderr, "Could not drop privileges to group '%s' (GID %d): %s\n",
                 groupname, gid, strerror(errno));
-            exit(EXIT_FAILURE);
+            goto fail;
         }
     }
     if (username != NULL) {
         if (setuid(uid) != 0) {
             fprintf(stderr, "Could not drop priveleges to user '%s' (UID %d): %s\n",
                 username, uid, strerror(errno));
-            exit(EXIT_FAILURE);
+            goto fail;
         }
     }
 
@@ -203,7 +203,7 @@ main(int argc, char **argv)
 
         if (setsid() < 0) {
             fprintf(stderr, "Could not create new session: %s\n", strerror(errno));
-            exit(EXIT_FAILURE);
+            goto fail;
         }
 
         pid = fork();
@@ -219,7 +219,7 @@ main(int argc, char **argv)
 
         if (chdir("/") != 0) {
             fprintf(stderr, "Could not change directory to '/': %s\n", strerror(errno));
-            exit(EXIT_FAILURE);
+            goto fail;
         }
 
         umask(027);
@@ -248,6 +248,7 @@ main(int argc, char **argv)
 
     libnet_destroy(l);
     exit(EXIT_SUCCESS);
+
 fail:
     libnet_destroy(l);
     exit(EXIT_FAILURE);
