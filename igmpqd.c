@@ -38,7 +38,7 @@
 void
 usage(char *command)
 {
-    printf("usage: %s [-d] [-f] [-h] [-v] [-m MGROUP] [-u USER] [-g GROUP] [-i INTERVAL]\n",
+    printf("usage: %s [-dfhv] [-m MGROUP] [-u USER] [-g GROUP] [-i INTERVAL]\n",
         command);
 }
 
