@@ -206,15 +206,19 @@ main(int argc, char **argv)
             exit(EXIT_FAILURE);
         }
 
+        if (chdir("/") != 0) {
+            fprintf(stderr, "Could not change directory to '/': %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+
+        umask(027);
+
         close(STDIN_FILENO);
         close(STDOUT_FILENO);
         close(STDERR_FILENO);
         i = open("/dev/null", O_RDWR);
         dup(i);
         dup(i);
-
-        umask(027);
-        chdir("/");
     }
 
     while (1) {
