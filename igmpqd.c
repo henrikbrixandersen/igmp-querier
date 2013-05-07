@@ -62,7 +62,7 @@ main(int argc, char **argv)
     char errbuf[LIBNET_ERRBUF_SIZE];
 
     pid_t pid;
-    int c, i, exitstatus;
+    int c, exitstatus;
 
     while ((c = getopt(argc, argv, "dfg:hi:m:u:v")) != -1) {
         switch (c) {
@@ -239,12 +239,13 @@ main(int argc, char **argv)
 
         umask(027);
 
+        /* TODO: Handle errors */
         close(STDIN_FILENO);
         close(STDOUT_FILENO);
         close(STDERR_FILENO);
-        i = open("/dev/null", O_RDWR);
-        dup(i);
-        dup(i);
+        open("/dev/null", O_RDONLY);
+        open("/dev/null", O_WRONLY);
+        open("/dev/null", O_WRONLY);
     }
 
     while (1) {
