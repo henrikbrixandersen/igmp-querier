@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include <libnet.h>
@@ -46,19 +47,22 @@ usage(char *command)
 int
 main(int argc, char **argv)
 {
-    int c, debug = 0, i;
+    int debug = 0, daemonize = 1;
     long interval = 60;
+
     char *endptr = NULL, *username = NULL, *groupname = NULL;
-    uid_t uid;
-    gid_t gid;
     struct passwd *passwd = NULL;
     struct group *group = NULL;
+    uid_t uid;
+    gid_t gid;
+
     libnet_t *l = NULL;
     libnet_ptag_t igmp, ipv4;
     uint32_t mgroup = 0, network, dst;
-    int daemonize = 1;
-    pid_t pid;
     char errbuf[LIBNET_ERRBUF_SIZE];
+
+    pid_t pid;
+    int c, i, exitstatus;
 
     while ((c = getopt(argc, argv, "dfg:hi:m:u:v")) != -1) {
         switch (c) {
@@ -192,13 +196,24 @@ main(int argc, char **argv)
     if (daemonize) {
         pid = fork();
         if (pid < 0) {
-            fprintf(stderr, "Error: Could not create child process: %s", strerror(errno));
+            fprintf(stderr, "Error: Could not create child process: %s\n", strerror(errno));
             goto fail;
         } else if (pid > 0) {
             if (debug) {
-                printf("Created child process with PID %d\n", pid);
+                printf("Waiting for child process with PID %d to exit...\n", pid);
             }
-            exit(EXIT_SUCCESS);
+            if (waitpid(pid, &exitstatus, 0) == pid) {
+                if (exitstatus == EXIT_SUCCESS) {
+                    /* TODO: wait for grandchild */
+                    _exit(EXIT_SUCCESS);
+                } else {
+                    fprintf(stderr, "Error: Child process failed\n");
+                    goto fail;
+                }
+            } else {
+                fprintf(stderr, "Error: Could not wait for child process with PID %d: %s\n", pid, strerror(errno));
+                goto fail;
+            }
         }
 
         if (setsid() < 0) {
