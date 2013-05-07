@@ -1,5 +1,7 @@
 SHELL=/bin/sh
 
+CFLAGS?=-Wall
+
 BINARY=igmpqd
 SRCS=igmpqd.c
 
