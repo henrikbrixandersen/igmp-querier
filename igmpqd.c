@@ -237,11 +237,15 @@ daemonize(int debug)
 int
 main(int argc, char **argv)
 {
-    igmpqd_options_t *options;
+    char *dst_mgroup = "224.0.0.1";
+    char *dst_mac = "01:00:5e:00:00:01";
 
+    igmpqd_options_t *options;
     libnet_t *l = NULL;
-    libnet_ptag_t igmp, ipv4;
-    uint32_t dst;
+    libnet_ptag_t igmp, ipv4, ethernet;
+    uint32_t src_ipv4, dst_ipv4;
+    uint8_t *dst_ether;
+    int len;
     char errbuf[LIBNET_ERRBUF_SIZE];
 
     /* Parse command line options */
@@ -268,7 +272,7 @@ main(int argc, char **argv)
     }
 
     /* Initialize libnet */
-    l = libnet_init(LIBNET_RAW4, NULL, errbuf);
+    l = libnet_init(LIBNET_LINK, NULL, errbuf);
     if (l == NULL) {
         fprintf(stderr, "Error: Could not initialize libnet: %s\n", errbuf);
         exit(EXIT_FAILURE);
@@ -287,18 +291,39 @@ main(int argc, char **argv)
         goto fail;
     }
 
+    /* Source IP address */
+    src_ipv4 = libnet_get_ipaddr4(l);
+    if (src_ipv4 == -1) {
+        fprintf(stderr, "Error: Could not get source IPv4 address: %s\n", libnet_geterror(l));
+        goto fail;
+    }
+
     /* Resolve destination multicast group (All Hosts) */
-    dst = libnet_name2addr4(l, "224.0.0.1", LIBNET_DONT_RESOLVE);
-    if (dst == -1) {
-        fprintf(stderr, "Error: Could not resolve multicast group 224.0.0.1\n");
+    dst_ipv4 = libnet_name2addr4(l, dst_mgroup, LIBNET_DONT_RESOLVE);
+    if (dst_ipv4 == -1) {
+        fprintf(stderr, "Error: Could not resolve multicast group (%s)\n", dst_mgroup);
         goto fail;
     }
 
     /* Build IPv4 header (layer 3) */
     ipv4 = libnet_build_ipv4(LIBNET_IPV4_H + LIBNET_IGMP_H,
-        0, 0, 0, 1, IPPROTO_IGMP, 0, (uint32_t)0, dst, NULL, 0, l, 0);
+        0, 0, 0, 1, IPPROTO_IGMP, 0, src_ipv4, dst_ipv4, NULL, 0, l, 0);
     if (ipv4 == -1) {
         fprintf(stderr, "Error: Could not build IPv4 header: %s\n", libnet_geterror(l));
+        goto fail;
+    }
+
+    /* Destination MAC address */
+    dst_ether = libnet_hex_aton(dst_mac, &len);
+    if (dst_ether == NULL) {
+        fprintf(stderr, "Error: Could not construct destination MAC address (%s)\n", dst_mac);
+        goto fail;
+    }
+
+    /* Build ethernet header (layer 2) */
+    ethernet = libnet_autobuild_ethernet(dst_ether, ETHERTYPE_IP, l);
+    if (ethernet == -1) {
+        fprintf(stderr, "Error: Could not build ethernet header: %s\n", libnet_geterror(l));
         goto fail;
     }
 
