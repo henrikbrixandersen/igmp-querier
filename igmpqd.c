@@ -282,6 +282,9 @@ main(int argc, char **argv)
         fprintf(stderr, "Error: Could not initialize libnet: %s\n", errbuf);
         exit(EXIT_FAILURE);
     }
+    if (options->debug) {
+        printf("Using interface '%s'\n", libnet_getdevice(l));
+    }
 
     /* Drop privileges */
     if (drop_privileges(options->username, options->uid,
