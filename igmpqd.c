@@ -37,6 +37,19 @@
 
 #define VERSION "0.1.0"
 
+typedef struct igmpqd_options {
+    int           debug;
+    int           daemonize;
+    int           help;
+    int           version;
+    unsigned int  interval;
+    char         *username;
+    uid_t         uid;
+    char         *groupname;
+    gid_t         gid;
+    uint32_t      mgroup;
+} igmpqd_options_t;
+
 void
 usage(char *command)
 {
@@ -45,98 +58,85 @@ usage(char *command)
 }
 
 int
-main(int argc, char **argv)
+parse_command_line(int argc, char **argv, igmpqd_options_t *options)
 {
-    int debug = 0, daemonize = 1;
-    long interval = 60;
-
-    char *endptr = NULL, *username = NULL, *groupname = NULL;
+    char *endptr = NULL;
     struct passwd *passwd = NULL;
     struct group *group = NULL;
-    uid_t uid;
-    gid_t gid;
-
-    libnet_t *l = NULL;
-    libnet_ptag_t igmp, ipv4;
-    uint32_t mgroup = 0, network, dst;
-    char errbuf[LIBNET_ERRBUF_SIZE];
-
-    pid_t pid;
-    int c, exitstatus;
+    uint32_t network;
+    int c;
 
     while ((c = getopt(argc, argv, "dfg:hi:m:u:v")) != -1) {
         switch (c) {
         case 'd':
-            debug = 1;
+            options->debug = 1;
             break;
 
         case 'f':
-            daemonize = 0;
+            options->daemonize = 0;
             break;
 
         case 'g':
             errno = 0;
-            groupname = optarg;
-            group = getgrnam(groupname);
+            options->groupname = optarg;
+            group = getgrnam(optarg);
             if (group == NULL) {
                 if (errno) {
-                    fprintf(stderr, "Error: Could not get GID for group '%s': %s\n", groupname, strerror(errno));
+                    fprintf(stderr, "Error: Could not get GID for group '%s': %s\n", optarg, strerror(errno));
                 } else {
-                    fprintf(stderr, "Error: Can not drop privileges to nonexistent group '%s'\n", groupname);
+                    fprintf(stderr, "Error: Can not drop privileges to nonexistent group '%s'\n", optarg);
                 }
-                exit(EXIT_FAILURE);
+                return -1;
             }
-            gid = group->gr_gid;
+            options->gid = group->gr_gid;
             break;
 
         case 'h':
-            usage(argv[0]);
-            exit(EXIT_SUCCESS);
+            options->help = 1;
             break;
 
         case 'i':
             errno = 0;
-            interval = strtol(optarg, &endptr, 10);
-            if (*endptr != '\0' || interval <= 0 ||
-                (errno == ERANGE && (interval == LONG_MAX || interval == LONG_MIN)) ||
-                (errno != 0 && interval == 0)) {
+            options->interval = strtol(optarg, &endptr, 10);
+            if (*endptr != '\0' || options->interval <= 0 ||
+                (errno == ERANGE && (options->interval == LONG_MAX || options->interval == LONG_MIN)) ||
+                (errno != 0 && options->interval == 0)) {
                 fprintf(stderr, "Error: Invalid interval '%s'\n", optarg);
-                exit(EXIT_FAILURE);
+                return -1;
             }
             break;
 
         case 'm':
-            mgroup = libnet_name2addr4(l, optarg, LIBNET_DONT_RESOLVE);
-            network = libnet_name2addr4(l, "224.0.0.0", LIBNET_DONT_RESOLVE);
-            if (mgroup == -1 || network == -1 || (mgroup & network) != network) {
+            options->mgroup = libnet_name2addr4(NULL, optarg, LIBNET_DONT_RESOLVE);
+            network = libnet_name2addr4(NULL, "224.0.0.0", LIBNET_DONT_RESOLVE);
+            if (options->mgroup == -1 || network == -1 || (options->mgroup & network) != network) {
                 fprintf(stderr, "Error: Invalid multicast group '%s'\n", optarg);
-                exit(EXIT_FAILURE);
+                return -1;
             }
             break;
 
         case 'u':
             errno = 0;
-            username = optarg;
-            passwd = getpwnam(username);
+            options->username = optarg;
+            passwd = getpwnam(optarg);
             if (passwd == NULL) {
                 if (errno) {
-                    fprintf(stderr, "Error: Could not get GID for user '%s': %s\n", username, strerror(errno));
+                    fprintf(stderr, "Error: Could not get GID for user '%s': %s\n", optarg, strerror(errno));
                 } else {
-                    fprintf(stderr, "Error: Can not drop privileges to nonexistent user '%s'\n", username);
+                    fprintf(stderr, "Error: Can not drop privileges to nonexistent user '%s'\n", optarg);
                 }
-                exit(EXIT_FAILURE);
+                return -1;
             }
-            uid = passwd->pw_uid;
+            options->uid = passwd->pw_uid;
             break;
 
         case 'v':
-            printf("%s\n", VERSION);
-            exit(EXIT_SUCCESS);
+            options->version = 1;
             break;
 
         default:
             usage(argv[0]);
-            exit(EXIT_FAILURE);
+            return -1;
             break;
         }
     }
@@ -144,7 +144,127 @@ main(int argc, char **argv)
     /* Ensure no extra command line parameters were given */
     if (argc != optind) {
         usage(argv[0]);
+        return -1;
+    }
+
+    return 0;
+}
+
+int
+drop_privileges(char* username, uid_t uid, char *groupname, gid_t gid)
+{
+    if (groupname != NULL) {
+        if (setgid(gid) != 0) {
+            fprintf(stderr, "Error: Could not drop privileges to group '%s' (GID %d): %s\n",
+                groupname, gid, strerror(errno));
+            return -1;
+        }
+    }
+
+    if (username != NULL) {
+        if (setuid(uid) != 0) {
+            fprintf(stderr, "Error: Could not drop priveleges to user '%s' (UID %d): %s\n",
+                username, uid, strerror(errno));
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+int
+daemonize(int debug)
+{
+    pid_t pid;
+    int exitstatus;
+
+    pid = fork();
+    if (pid < 0) {
+        fprintf(stderr, "Error: Could not create child process: %s\n", strerror(errno));
+        return -1;
+    } else if (pid > 0) {
+        if (debug) {
+            printf("Waiting for child process with PID %d to exit...\n", pid);
+        }
+        if (waitpid(pid, &exitstatus, 0) == pid) {
+            if (exitstatus == EXIT_SUCCESS) {
+                /* TODO: wait for grandchild */
+                _exit(EXIT_SUCCESS);
+            } else {
+                fprintf(stderr, "Error: Child process failed\n");
+                return -1;
+            }
+        } else {
+            fprintf(stderr, "Error: Could not wait for child process with PID %d: %s\n", pid, strerror(errno));
+            return -1;
+        }
+    }
+
+    if (setsid() < 0) {
+        fprintf(stderr, "Error: Could not create new session: %s\n", strerror(errno));
+        return -1;
+    }
+
+    pid = fork();
+    if (pid < 0) {
+        fprintf(stderr, "Error: Could not create grandchild process: %s", strerror(errno));
+        return -1;
+    } else if (pid > 0) {
+        if (debug) {
+            printf("Created grandchild process with PID %d\n", pid);
+        }
+        exit(EXIT_SUCCESS);
+    }
+
+    if (chdir("/") != 0) {
+        fprintf(stderr, "Error: Could not change directory to '/': %s\n", strerror(errno));
+        return -1;
+    }
+
+    umask(027);
+
+    /* TODO: Handle errors */
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
+    open("/dev/null", O_RDONLY);
+    open("/dev/null", O_WRONLY);
+    open("/dev/null", O_WRONLY);
+
+    return 0;
+}
+
+int
+main(int argc, char **argv)
+{
+    igmpqd_options_t *options;
+
+    libnet_t *l = NULL;
+    libnet_ptag_t igmp, ipv4;
+    uint32_t dst;
+    char errbuf[LIBNET_ERRBUF_SIZE];
+
+    /* Parse command line options */
+    options = malloc(sizeof(igmpqd_options_t));
+    if (options == NULL) {
+        fprintf(stderr, "Error: Could not allocate memory for options: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
+    }
+    memset(options, 0, sizeof(options));
+    options->interval = 60; /* seconds */
+    options->daemonize = 1;
+    if (parse_command_line(argc, argv, options) != 0) {
+        exit(EXIT_FAILURE);
+    }
+
+    /* Check for special options */
+    if (options->help) {
+        usage(argv[0]);
+        exit(EXIT_SUCCESS);
+    }
+    if (options->version) {
+        printf("%s\n", VERSION);
+        exit(EXIT_SUCCESS);
     }
 
     /* Initialize libnet */
@@ -155,23 +275,13 @@ main(int argc, char **argv)
     }
 
     /* Drop privileges */
-    if (groupname != NULL) {
-        if (setgid(gid) != 0) {
-            fprintf(stderr, "Error: Could not drop privileges to group '%s' (GID %d): %s\n",
-                groupname, gid, strerror(errno));
-            goto fail;
-        }
-    }
-    if (username != NULL) {
-        if (setuid(uid) != 0) {
-            fprintf(stderr, "Error: Could not drop priveleges to user '%s' (UID %d): %s\n",
-                username, uid, strerror(errno));
-            goto fail;
-        }
+    if (drop_privileges(options->username, options->uid,
+            options->groupname, options->gid) != 0) {
+        goto fail;
     }
 
     /* Build IGMP membership query (layer 4) */
-    igmp = libnet_build_igmp(IGMP_MEMBERSHIP_QUERY, 0, 0, mgroup, NULL, 0, l, 0);
+    igmp = libnet_build_igmp(IGMP_MEMBERSHIP_QUERY, 0, 0, options->mgroup, NULL, 0, l, 0);
     if (igmp == -1) {
         fprintf(stderr, "Error: Could not build IGMP packet: %s\n", libnet_geterror(l));
         goto fail;
@@ -193,64 +303,15 @@ main(int argc, char **argv)
     }
 
     /* Daemonize */
-    if (daemonize) {
-        pid = fork();
-        if (pid < 0) {
-            fprintf(stderr, "Error: Could not create child process: %s\n", strerror(errno));
-            goto fail;
-        } else if (pid > 0) {
-            if (debug) {
-                printf("Waiting for child process with PID %d to exit...\n", pid);
-            }
-            if (waitpid(pid, &exitstatus, 0) == pid) {
-                if (exitstatus == EXIT_SUCCESS) {
-                    /* TODO: wait for grandchild */
-                    _exit(EXIT_SUCCESS);
-                } else {
-                    fprintf(stderr, "Error: Child process failed\n");
-                    goto fail;
-                }
-            } else {
-                fprintf(stderr, "Error: Could not wait for child process with PID %d: %s\n", pid, strerror(errno));
-                goto fail;
-            }
-        }
-
-        if (setsid() < 0) {
-            fprintf(stderr, "Error: Could not create new session: %s\n", strerror(errno));
+    if (options->daemonize) {
+        if (daemonize(options->debug) != 0) {
             goto fail;
         }
-
-        pid = fork();
-        if (pid < 0) {
-            fprintf(stderr, "Error: Could not create grandchild process: %s", strerror(errno));
-            goto fail;
-        } else if (pid > 0) {
-            if (debug) {
-                printf("Created grandchild process with PID %d\n", pid);
-            }
-            exit(EXIT_SUCCESS);
-        }
-
-        if (chdir("/") != 0) {
-            fprintf(stderr, "Error: Could not change directory to '/': %s\n", strerror(errno));
-            goto fail;
-        }
-
-        umask(027);
-
-        /* TODO: Handle errors */
-        close(STDIN_FILENO);
-        close(STDOUT_FILENO);
-        close(STDERR_FILENO);
-        open("/dev/null", O_RDONLY);
-        open("/dev/null", O_WRONLY);
-        open("/dev/null", O_WRONLY);
     }
 
+    /* Transmit loop */
     while (1) {
-        /* Transmit */
-        if (debug) {
+        if (options->debug) {
             libnet_diag_dump_pblock(l);
         }
         if (libnet_write(l) == -1) {
@@ -259,13 +320,15 @@ main(int argc, char **argv)
             goto fail;
         }
 
-        sleep(interval);
+        sleep(options->interval);
     }
 
+    free(options);
     libnet_destroy(l);
     exit(EXIT_SUCCESS);
 
 fail:
+    free(options);
     libnet_destroy(l);
     exit(EXIT_FAILURE);
 }
