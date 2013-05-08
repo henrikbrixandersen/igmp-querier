@@ -42,7 +42,7 @@ typedef struct igmpqd_options {
     int           daemonize;
     int           help;
     int           version;
-    unsigned int  interval;
+    int           interval;
     char         *interface;
     char         *username;
     uid_t         uid;
