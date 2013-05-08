@@ -43,6 +43,7 @@ typedef struct igmpqd_options {
     int           help;
     int           version;
     unsigned int  interval;
+    char         *interface;
     char         *username;
     uid_t         uid;
     char         *groupname;
@@ -53,7 +54,7 @@ typedef struct igmpqd_options {
 void
 usage(char *command)
 {
-    printf("usage: %s [-dfhv] [-m MGROUP] [-u USER] [-g GROUP] [-i INTERVAL]\n",
+    printf("usage: %s [-dfhv] [-m MGROUP] [-u USER] [-g GROUP] [-i INTERFACE] [-s INTERVAL]\n",
         command);
 }
 
@@ -66,7 +67,7 @@ parse_command_line(int argc, char **argv, igmpqd_options_t *options)
     uint32_t network;
     int c;
 
-    while ((c = getopt(argc, argv, "dfg:hi:m:u:v")) != -1) {
+    while ((c = getopt(argc, argv, "dfg:hi:m:s:u:v")) != -1) {
         switch (c) {
         case 'd':
             options->debug = 1;
@@ -96,14 +97,7 @@ parse_command_line(int argc, char **argv, igmpqd_options_t *options)
             break;
 
         case 'i':
-            errno = 0;
-            options->interval = strtol(optarg, &endptr, 10);
-            if (*endptr != '\0' || options->interval <= 0 ||
-                (errno == ERANGE && (options->interval == LONG_MAX || options->interval == LONG_MIN)) ||
-                (errno != 0 && options->interval == 0)) {
-                fprintf(stderr, "Error: Invalid interval '%s'\n", optarg);
-                return -1;
-            }
+            options->interface = optarg;
             break;
 
         case 'm':
@@ -111,6 +105,17 @@ parse_command_line(int argc, char **argv, igmpqd_options_t *options)
             network = libnet_name2addr4(NULL, "224.0.0.0", LIBNET_DONT_RESOLVE);
             if (options->mgroup == -1 || network == -1 || (options->mgroup & network) != network) {
                 fprintf(stderr, "Error: Invalid multicast group '%s'\n", optarg);
+                return -1;
+            }
+            break;
+
+        case 's':
+            errno = 0;
+            options->interval = strtol(optarg, &endptr, 10);
+            if (*endptr != '\0' || options->interval <= 0 ||
+                (errno == ERANGE && (options->interval == LONG_MAX || options->interval == LONG_MIN)) ||
+                (errno != 0 && options->interval == 0)) {
+                fprintf(stderr, "Error: Invalid interval '%s'\n", optarg);
                 return -1;
             }
             break;
@@ -272,7 +277,7 @@ main(int argc, char **argv)
     }
 
     /* Initialize libnet */
-    l = libnet_init(LIBNET_LINK, NULL, errbuf);
+    l = libnet_init(LIBNET_LINK, options->interface, errbuf);
     if (l == NULL) {
         fprintf(stderr, "Error: Could not initialize libnet: %s\n", errbuf);
         exit(EXIT_FAILURE);
