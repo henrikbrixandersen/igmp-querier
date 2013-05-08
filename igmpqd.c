@@ -334,6 +334,7 @@ main(int argc, char **argv)
         fprintf(stderr, "Error: Could not build ethernet header: %s\n", libnet_geterror(l));
         goto fail;
     }
+    free(dst_ether);
 
     /* Daemonize */
     if (options->daemonize) {
