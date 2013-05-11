@@ -28,12 +28,11 @@
 #include <grp.h>
 #include <pwd.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 #include <libnet.h>
+
+#include "daemon.h"
 
 #define VERSION "0.1.0"
 
@@ -151,90 +150,6 @@ parse_command_line(int argc, char **argv, igmpqd_options_t *options)
         usage(argv[0]);
         return -1;
     }
-
-    return 0;
-}
-
-int
-drop_privileges(char* username, uid_t uid, char *groupname, gid_t gid)
-{
-    if (groupname != NULL) {
-        if (setgid(gid) != 0) {
-            fprintf(stderr, "Error: Could not drop privileges to group '%s' (GID %d): %s\n",
-                groupname, gid, strerror(errno));
-            return -1;
-        }
-    }
-
-    if (username != NULL) {
-        if (setuid(uid) != 0) {
-            fprintf(stderr, "Error: Could not drop priveleges to user '%s' (UID %d): %s\n",
-                username, uid, strerror(errno));
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-int
-daemonize(int debug)
-{
-    pid_t pid;
-    int exitstatus;
-
-    pid = fork();
-    if (pid < 0) {
-        fprintf(stderr, "Error: Could not create child process: %s\n", strerror(errno));
-        return -1;
-    } else if (pid > 0) {
-        if (debug) {
-            printf("Waiting for child process with PID %d to exit...\n", pid);
-        }
-        if (waitpid(pid, &exitstatus, 0) == pid) {
-            if (exitstatus == EXIT_SUCCESS) {
-                /* TODO: wait for grandchild */
-                _exit(EXIT_SUCCESS);
-            } else {
-                fprintf(stderr, "Error: Child process failed\n");
-                return -1;
-            }
-        } else {
-            fprintf(stderr, "Error: Could not wait for child process with PID %d: %s\n", pid, strerror(errno));
-            return -1;
-        }
-    }
-
-    if (setsid() < 0) {
-        fprintf(stderr, "Error: Could not create new session: %s\n", strerror(errno));
-        return -1;
-    }
-
-    pid = fork();
-    if (pid < 0) {
-        fprintf(stderr, "Error: Could not create grandchild process: %s", strerror(errno));
-        return -1;
-    } else if (pid > 0) {
-        if (debug) {
-            printf("Created grandchild process with PID %d\n", pid);
-        }
-        exit(EXIT_SUCCESS);
-    }
-
-    if (chdir("/") != 0) {
-        fprintf(stderr, "Error: Could not change directory to '/': %s\n", strerror(errno));
-        return -1;
-    }
-
-    umask(027);
-
-    /* TODO: Handle errors */
-    close(STDIN_FILENO);
-    close(STDOUT_FILENO);
-    close(STDERR_FILENO);
-    open("/dev/null", O_RDONLY);
-    open("/dev/null", O_WRONLY);
-    open("/dev/null", O_WRONLY);
 
     return 0;
 }

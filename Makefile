@@ -3,11 +3,12 @@ SHELL=/bin/sh
 CFLAGS?=-Wall
 
 BINARY=igmpqd
-SRCS=igmpqd.c
+SRCS=igmpqd.c daemon.c
+HDRS=daemon.h
 
 all: $(BINARY)
 
-$(BINARY): $(SRCS)
+$(BINARY): $(SRCS) $(HDRS)
 	$(CC) $(CFLAGS) $(LDFLAGS) -lnet $(SRCS) -o $(BINARY)
 
 install: $(BINARY)
