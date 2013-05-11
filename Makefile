@@ -1,4 +1,5 @@
 SHELL=/bin/sh
+RM=rm -f
 
 CFLAGS?=-Wall
 

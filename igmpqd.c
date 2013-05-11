@@ -25,6 +25,7 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <sys/types.h>
 #include <netinet/igmp.h>
 #include <limits.h>
 #include <netinet/in.h>
