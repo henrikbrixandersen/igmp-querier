@@ -38,6 +38,11 @@
 
 #define VERSION "0.1.0"
 
+/* For compatibility with e.g. OS X 10.8 */
+#ifndef IGMP_MEMBERSHIP_QUERY
+#define IGMP_MEMBERSHIP_QUERY IGMP_HOST_MEMBERSHIP_QUERY
+#endif
+
 typedef struct igmpqd_options {
     int           debug;
     int           daemonize;
