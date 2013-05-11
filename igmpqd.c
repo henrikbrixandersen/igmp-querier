@@ -144,7 +144,7 @@ main(int argc, char **argv)
         fprintf(stderr, "Error: Could not allocate memory for options: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    memset(options, 0, sizeof(options));
+    memset(options, 0, sizeof(*options));
     options->interval = 60; /* seconds */
     options->daemonize = 1;
     if (parse_command_line(argc, argv, options) != 0) {
