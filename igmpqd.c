@@ -23,12 +23,16 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <arpa/inet.h>
 #include <errno.h>
+#include <netinet/igmp.h>
 #include <limits.h>
+#include <netinet/in.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
-
-#include <libnet.h>
 
 #include "daemon.h"
 
@@ -40,16 +44,14 @@ typedef struct igmpqd_options {
     int           help;
     int           version;
     long          interval;
-    char         *interface;
     char         *username;
     char         *groupname;
-    uint32_t      mgroup;
 } igmpqd_options_t;
 
 void
 usage(char *command)
 {
-    printf("usage: %s [-dfhv] [-m MGROUP] [-u USER] [-g GROUP] [-i INTERFACE] [-s INTERVAL]\n",
+    printf("usage: %s [-dfhv] [-m MGROUP] [-u USER] [-s INTERVAL]\n",
         command);
 }
 
@@ -57,10 +59,9 @@ int
 parse_command_line(int argc, char **argv, igmpqd_options_t *options)
 {
     char *endptr = NULL;
-    uint32_t network;
     int c;
 
-    while ((c = getopt(argc, argv, "dfg:hi:m:s:u:v")) != -1) {
+    while ((c = getopt(argc, argv, "dfg:hm:s:u:v")) != -1) {
         switch (c) {
         case 'd':
             options->debug = 1;
@@ -76,19 +77,6 @@ parse_command_line(int argc, char **argv, igmpqd_options_t *options)
 
         case 'h':
             options->help = 1;
-            break;
-
-        case 'i':
-            options->interface = optarg;
-            break;
-
-        case 'm':
-            options->mgroup = libnet_name2addr4(NULL, optarg, LIBNET_DONT_RESOLVE);
-            network = libnet_name2addr4(NULL, "224.0.0.0", LIBNET_DONT_RESOLVE);
-            if (options->mgroup == -1 || network == -1 || (options->mgroup & network) != network) {
-                fprintf(stderr, "Error: Invalid multicast group '%s'\n", optarg);
-                return -1;
-            }
             break;
 
         case 's':
@@ -126,19 +114,29 @@ parse_command_line(int argc, char **argv, igmpqd_options_t *options)
     return 0;
 }
 
+uint16_t
+cksum(void *buf, size_t len)
+{
+    uint16_t cksum;
+    uint32_t sum = 0;
+    int i;
+
+    for (i = 0; i < len; i++) {
+        sum += ((uint8_t*)buf)[i];
+    }
+    cksum = (sum & 0xFFFF) + (sum >> 16);
+
+    return ~cksum;
+}
+
 int
 main(int argc, char **argv)
 {
-    char *dst_mgroup = "224.0.0.1";
-    char *dst_mac = "01:00:5e:00:00:01";
-
+    struct igmp igmp;
+    struct in_addr mgroup, allhosts;
+    struct sockaddr_in dst;
     igmpqd_options_t *options;
-    libnet_t *l = NULL;
-    libnet_ptag_t igmp, ipv4, ethernet;
-    uint32_t src_ipv4, dst_ipv4;
-    uint8_t *dst_ether;
-    int len;
-    char errbuf[LIBNET_ERRBUF_SIZE];
+    int sockfd;
 
     /* Parse command line options */
     options = malloc(sizeof(igmpqd_options_t));
@@ -163,14 +161,11 @@ main(int argc, char **argv)
         exit(EXIT_SUCCESS);
     }
 
-    /* Initialize libnet */
-    l = libnet_init(LIBNET_LINK, options->interface, errbuf);
-    if (l == NULL) {
-        fprintf(stderr, "Error: Could not initialize libnet: %s\n", errbuf);
-        exit(EXIT_FAILURE);
-    }
-    if (options->debug) {
-        printf("Using interface '%s'\n", libnet_getdevice(l));
+    /* TODO: Open socket */
+    sockfd = socket(PF_INET, SOCK_RAW, IPPROTO_IGMP);
+    if (sockfd == -1) {
+        fprintf(stderr, "Error: Could not open raw socket: %s\n", strerror(errno));
+        goto fail;
     }
 
     /* Drop privileges */
@@ -178,49 +173,29 @@ main(int argc, char **argv)
         goto fail;
     }
 
-    /* Build IGMP membership query (layer 4) */
-    igmp = libnet_build_igmp(IGMP_MEMBERSHIP_QUERY, 0, 0, options->mgroup, NULL, 0, l, 0);
-    if (igmp == -1) {
-        fprintf(stderr, "Error: Could not build IGMP packet: %s\n", libnet_geterror(l));
+    /* Multicast groups */
+    mgroup.s_addr = inet_addr("0.0.0.0");
+    if (mgroup.s_addr == INADDR_NONE) {
+        fprintf(stderr, "Error: Invalid multicast group '0.0.0.0'\n");
+        goto fail;
+    }
+    allhosts.s_addr = inet_addr("224.0.0.1");
+    if (allhosts.s_addr == INADDR_NONE) {
+        fprintf(stderr, "Error: Invalid multicast group '224.0.0.1'\n");
         goto fail;
     }
 
-    /* Source IP address */
-    src_ipv4 = libnet_get_ipaddr4(l);
-    if (src_ipv4 == -1) {
-        fprintf(stderr, "Error: Could not get source IPv4 address: %s\n", libnet_geterror(l));
-        goto fail;
-    }
+    /* IGMPv1 query */
+    igmp.igmp_type = IGMP_MEMBERSHIP_QUERY;
+    igmp.igmp_code = 0;
+    igmp.igmp_cksum = 0;
+    igmp.igmp_group = mgroup;
+    igmp.igmp_cksum = cksum(&igmp, sizeof(igmp));
 
-    /* Resolve destination multicast group (All Hosts) */
-    dst_ipv4 = libnet_name2addr4(l, dst_mgroup, LIBNET_DONT_RESOLVE);
-    if (dst_ipv4 == -1) {
-        fprintf(stderr, "Error: Could not resolve multicast group (%s)\n", dst_mgroup);
-        goto fail;
-    }
-
-    /* Build IPv4 header (layer 3) */
-    ipv4 = libnet_build_ipv4(LIBNET_IPV4_H + LIBNET_IGMP_H,
-        0, 0, 0, 1, IPPROTO_IGMP, 0, src_ipv4, dst_ipv4, NULL, 0, l, 0);
-    if (ipv4 == -1) {
-        fprintf(stderr, "Error: Could not build IPv4 header: %s\n", libnet_geterror(l));
-        goto fail;
-    }
-
-    /* Destination MAC address */
-    dst_ether = libnet_hex_aton(dst_mac, &len);
-    if (dst_ether == NULL) {
-        fprintf(stderr, "Error: Could not construct destination MAC address (%s)\n", dst_mac);
-        goto fail;
-    }
-
-    /* Build ethernet header (layer 2) */
-    ethernet = libnet_autobuild_ethernet(dst_ether, ETHERTYPE_IP, l);
-    if (ethernet == -1) {
-        fprintf(stderr, "Error: Could not build ethernet header: %s\n", libnet_geterror(l));
-        goto fail;
-    }
-    free(dst_ether);
+    /* Destination */
+    dst.sin_family = AF_INET;
+    dst.sin_port = htons(0);
+    dst.sin_addr = allhosts;
 
     /* Daemonize */
     if (options->daemonize) {
@@ -231,24 +206,16 @@ main(int argc, char **argv)
 
     /* Transmit loop */
     while (1) {
-        if (options->debug) {
-            libnet_diag_dump_pblock(l);
+        if (sendto(sockfd, &igmp, sizeof(igmp), 0, (struct sockaddr*)&dst, sizeof(dst)) == -1) {
+            fprintf(stderr, "Error: Could not send IGMP query: %s\n", strerror(errno));
         }
-        if (libnet_write(l) == -1) {
-            fprintf(stderr, "Error: Could not transmit IGMP packet: %s", libnet_geterror(l));
-            /* TODO: Just log and carry on here? */
-            goto fail;
-        }
-
         sleep(options->interval);
     }
 
     free(options);
-    libnet_destroy(l);
     exit(EXIT_SUCCESS);
 
 fail:
     free(options);
-    libnet_destroy(l);
     exit(EXIT_FAILURE);
 }

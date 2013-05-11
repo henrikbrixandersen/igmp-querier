@@ -9,7 +9,7 @@ HDRS=daemon.h
 all: $(BINARY)
 
 $(BINARY): $(SRCS) $(HDRS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -lnet $(SRCS) -o $(BINARY)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(SRCS) -o $(BINARY)
 
 install: $(BINARY)
 	install -d $(PREFIX)/sbin
