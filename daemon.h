@@ -23,14 +23,11 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <errno.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <unistd.h>
+#ifndef __DAEMON_H__
+#define __DAEMON_H__
 
-int drop_privileges(char* username, uid_t uid, char *groupname, gid_t gid);
+int drop_privileges(char* username, char *groupname);
 
 int daemonize(int debug);
+
+#endif /* __DAEMON_H__ */

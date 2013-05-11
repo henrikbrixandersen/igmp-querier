@@ -25,6 +25,8 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <grp.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,20 +35,45 @@
 #include <unistd.h>
 
 int
-drop_privileges(char* username, uid_t uid, char *groupname, gid_t gid)
+drop_privileges(char* username, char *groupname)
 {
+    struct passwd *passwd = NULL;
+    struct group *group = NULL;
+
     if (groupname != NULL) {
-        if (setgid(gid) != 0) {
+        errno = 0;
+        group = getgrnam(groupname);
+        if (group == NULL) {
+            if (errno) {
+                fprintf(stderr, "Error: Could not get GID for group '%s': %s\n", groupname, strerror(errno));
+            } else {
+                fprintf(stderr, "Error: Can not drop privileges to nonexistent group '%s'\n", groupname);
+            }
+            return -1;
+        }
+
+        if (setgid(group->gr_gid) != 0) {
             fprintf(stderr, "Error: Could not drop privileges to group '%s' (GID %d): %s\n",
-                groupname, gid, strerror(errno));
+                groupname, group->gr_gid, strerror(errno));
             return -1;
         }
     }
 
     if (username != NULL) {
-        if (setuid(uid) != 0) {
+        errno = 0;
+        passwd = getpwnam(username);
+        if (passwd == NULL) {
+            if (errno) {
+                fprintf(stderr, "Error: Could not get GID for user '%s': %s\n", username, strerror(errno));
+            } else {
+                fprintf(stderr, "Error: Can not drop privileges to nonexistent user '%s'\n", username);
+            }
+            return -1;
+        }
+
+        if (setuid(passwd->pw_uid) != 0) {
             fprintf(stderr, "Error: Could not drop priveleges to user '%s' (UID %d): %s\n",
-                username, uid, strerror(errno));
+                username, passwd->pw_uid, strerror(errno));
             return -1;
         }
     }

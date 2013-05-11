@@ -25,8 +25,6 @@
 
 #include <errno.h>
 #include <limits.h>
-#include <grp.h>
-#include <pwd.h>
 #include <stdio.h>
 #include <unistd.h>
 
@@ -44,9 +42,7 @@ typedef struct igmpqd_options {
     long          interval;
     char         *interface;
     char         *username;
-    uid_t         uid;
     char         *groupname;
-    gid_t         gid;
     uint32_t      mgroup;
 } igmpqd_options_t;
 
@@ -61,8 +57,6 @@ int
 parse_command_line(int argc, char **argv, igmpqd_options_t *options)
 {
     char *endptr = NULL;
-    struct passwd *passwd = NULL;
-    struct group *group = NULL;
     uint32_t network;
     int c;
 
@@ -77,18 +71,7 @@ parse_command_line(int argc, char **argv, igmpqd_options_t *options)
             break;
 
         case 'g':
-            errno = 0;
             options->groupname = optarg;
-            group = getgrnam(optarg);
-            if (group == NULL) {
-                if (errno) {
-                    fprintf(stderr, "Error: Could not get GID for group '%s': %s\n", optarg, strerror(errno));
-                } else {
-                    fprintf(stderr, "Error: Can not drop privileges to nonexistent group '%s'\n", optarg);
-                }
-                return -1;
-            }
-            options->gid = group->gr_gid;
             break;
 
         case 'h':
@@ -120,18 +103,7 @@ parse_command_line(int argc, char **argv, igmpqd_options_t *options)
             break;
 
         case 'u':
-            errno = 0;
             options->username = optarg;
-            passwd = getpwnam(optarg);
-            if (passwd == NULL) {
-                if (errno) {
-                    fprintf(stderr, "Error: Could not get GID for user '%s': %s\n", optarg, strerror(errno));
-                } else {
-                    fprintf(stderr, "Error: Can not drop privileges to nonexistent user '%s'\n", optarg);
-                }
-                return -1;
-            }
-            options->uid = passwd->pw_uid;
             break;
 
         case 'v':
@@ -202,8 +174,7 @@ main(int argc, char **argv)
     }
 
     /* Drop privileges */
-    if (drop_privileges(options->username, options->uid,
-            options->groupname, options->gid) != 0) {
+    if (drop_privileges(options->username, options->groupname) != 0) {
         goto fail;
     }
 
