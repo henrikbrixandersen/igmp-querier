@@ -167,7 +167,7 @@ main(int argc, char **argv)
         exit(EXIT_SUCCESS);
     }
 
-    /* TODO: Open socket */
+    /* Create socket */
     sockfd = socket(PF_INET, SOCK_RAW, IPPROTO_IGMP);
     if (sockfd == -1) {
         fprintf(stderr, "Error: Could not open raw socket: %s\n", strerror(errno));
