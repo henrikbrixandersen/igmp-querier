@@ -123,16 +123,19 @@ parse_command_line(int argc, char **argv, igmpqd_options_t *options)
 uint16_t
 cksum(void *buf, size_t len)
 {
-    uint16_t cksum;
-    uint32_t sum = 0;
+    uint32_t cksum = 0;
     int i;
+    int short_len = len / 2;
 
-    for (i = 0; i < len; i++) {
-        sum += ((uint8_t*)buf)[i];
+    for (i = 0; i < short_len; i++) {
+        cksum += ((uint16_t*)buf)[i];
     }
-    cksum = (sum & 0xFFFF) + (sum >> 16);
+    if (len % 2) {
+	    cksum += ((uint8_t*)buf)[len - 1];
+    }
+    cksum = (cksum & 0xFFFF) + (cksum >> 16);
 
-    return ~cksum;
+    return (~cksum & 0xFFFF);
 }
 
 int
