@@ -37,7 +37,7 @@
 
 #include "daemon.h"
 
-#define VERSION "0.1.0"
+#define VERSION "0.2.0"
 
 /* For compatibility with e.g. OS X 10.8 */
 #ifndef IGMP_MEMBERSHIP_QUERY
