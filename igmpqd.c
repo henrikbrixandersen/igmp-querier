@@ -52,12 +52,13 @@ typedef struct igmpqd_options {
     long  interval;
     char *username;
     char *groupname;
+    char *pidfile;
 } igmpqd_options_t;
 
 void
 usage(char *command)
 {
-    printf("usage: %s [-dfhv] [-m MGROUP] [-u USER] [-s INTERVAL]\n",
+    printf("usage: %s [-dfhv] [-m MGROUP] [-u USER] [-s INTERVAL] [-p PIDFILE]\n",
         command);
 }
 
@@ -67,7 +68,7 @@ parse_command_line(int argc, char **argv, igmpqd_options_t *options)
     char *endptr = NULL;
     int c;
 
-    while ((c = getopt(argc, argv, "dfg:hm:s:u:v")) != -1) {
+    while ((c = getopt(argc, argv, "dfg:hp:s:u:v")) != -1) {
         switch (c) {
         case 'd':
             options->debug = 1;
@@ -83,6 +84,10 @@ parse_command_line(int argc, char **argv, igmpqd_options_t *options)
 
         case 'h':
             options->help = 1;
+            break;
+
+        case 'p':
+            options->pidfile = optarg;
             break;
 
         case 's':
@@ -208,7 +213,7 @@ main(int argc, char **argv)
 
     /* Daemonize */
     if (options->daemonize) {
-        if (daemonize() != 0) {
+        if (daemonize(options->pidfile) != 0) {
             goto fail;
         }
     }

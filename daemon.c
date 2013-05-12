@@ -36,6 +36,8 @@
 
 typedef enum daemon_error {
         DAEMON_ERROR_NONE,
+        DAEMON_ERROR_PIDFILE_CREATE,
+        DAEMON_ERROR_PIDFILE_LOCK,
         DAEMON_ERROR_CHDIR,
         DAEMON_ERROR_STDIN_CLOSE,
         DAEMON_ERROR_STDOUT_CLOSE,
@@ -99,10 +101,10 @@ drop_privileges(char* username, char *groupname)
 }
 
 int
-daemonize(void)
+daemonize(char *pidfile)
 {
     daemon_status_t status;
-    int len;
+    int len, pidfd;
     pid_t pid;
     int exitstatus;
     int statusfds[2];
@@ -138,6 +140,16 @@ daemonize(void)
                 case DAEMON_ERROR_NONE:
                     /* Successfully created grandchild, exit parent */
                     _exit(EXIT_SUCCESS);
+                    break;
+
+                case DAEMON_ERROR_PIDFILE_CREATE:
+                    fprintf(stderr, "Error: Could not create pid file '%s': %s\n",
+                        pidfile, strerror(status.errnum));
+                    break;
+
+                case DAEMON_ERROR_PIDFILE_LOCK:
+                    fprintf(stderr, "Error: Could not lock pidfile '%s': %s\n",
+                        pidfile, strerror(status.errnum));
                     break;
 
                 case DAEMON_ERROR_CHDIR:
@@ -213,11 +225,26 @@ daemonize(void)
     /* Grandchild process starts here */
 
     close(statusfds[0]);
-    umask(027);
+    umask(0133);
 
     status.error = DAEMON_ERROR_NONE;
     status.pid = getpid();
     errno = 0;
+
+    if (pidfile != NULL) {
+        pidfd = open(pidfile, O_WRONLY|O_CREAT, 0644);
+        if (pidfd < 0) {
+            status.error = DAEMON_ERROR_PIDFILE_CREATE;
+            goto out;
+        }
+
+        if (lockf(pidfd, F_TLOCK, 0) < 0) {
+            status.error = DAEMON_ERROR_PIDFILE_LOCK;
+            goto out;
+        }
+
+        dprintf(pidfd, "%d\n", getpid());
+    }
 
     if (chdir("/") < 0) {
         status.error = DAEMON_ERROR_CHDIR;

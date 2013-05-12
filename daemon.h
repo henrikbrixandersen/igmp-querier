@@ -28,6 +28,6 @@
 
 int drop_privileges(char* username, char *groupname);
 
-int daemonize(void);
+int daemonize(char *pidfile);
 
 #endif /* __DAEMON_H__ */
