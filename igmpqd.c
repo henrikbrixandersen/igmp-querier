@@ -208,7 +208,7 @@ main(int argc, char **argv)
 
     /* Daemonize */
     if (options->daemonize) {
-        if (daemonize(options->debug) != 0) {
+        if (daemonize() != 0) {
             goto fail;
         }
     }
