@@ -45,13 +45,13 @@
 #endif
 
 typedef struct igmpqd_options {
-    int           debug;
-    int           daemonize;
-    int           help;
-    int           version;
-    long          interval;
-    char         *username;
-    char         *groupname;
+    int   debug;
+    int   daemonize;
+    int   help;
+    int   version;
+    long  interval;
+    char *username;
+    char *groupname;
 } igmpqd_options_t;
 
 void
