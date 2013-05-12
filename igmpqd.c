@@ -150,7 +150,7 @@ main(int argc, char **argv)
     /* Parse command line options */
     options = malloc(sizeof(igmpqd_options_t));
     if (options == NULL) {
-        fprintf(stderr, "Error: Could not allocate memory for options: %s\n", strerror(errno));
+        perror("Error: Could not allocate memory for options");
         exit(EXIT_FAILURE);
     }
     memset(options, 0, sizeof(*options));
@@ -173,7 +173,7 @@ main(int argc, char **argv)
     /* Create socket */
     sockfd = socket(PF_INET, SOCK_RAW, IPPROTO_IGMP);
     if (sockfd == -1) {
-        fprintf(stderr, "Error: Could not open raw socket: %s\n", strerror(errno));
+        perror("Error: Could not open raw socket");
         goto fail;
     }
 
@@ -216,7 +216,7 @@ main(int argc, char **argv)
     /* Transmit loop */
     while (1) {
         if (sendto(sockfd, &igmp, sizeof(igmp), 0, (struct sockaddr*)&dst, sizeof(dst)) == -1) {
-            fprintf(stderr, "Error: Could not send IGMP query: %s\n", strerror(errno));
+            perror("Error: Could not send IGMP query");
         }
         sleep(options->interval);
     }
