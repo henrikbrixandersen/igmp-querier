@@ -51,7 +51,6 @@ typedef enum daemon_error {
 
 typedef struct daemon_status {
     daemon_error_t error;
-    pid_t          pid;
     int            errnum;
 } daemon_status_t;
 
@@ -232,7 +231,6 @@ daemonize(char *pidfile)
     umask(0133);
 
     status.error = DAEMON_ERROR_NONE;
-    status.pid = getpid();
     errno = 0;
 
     if (pidfile != NULL) {
