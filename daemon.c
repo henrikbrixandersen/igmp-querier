@@ -34,6 +34,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "logging.h"
+
 typedef enum daemon_error {
         DAEMON_ERROR_NONE,
         DAEMON_ERROR_PIDFILE_CREATE,
@@ -64,15 +66,16 @@ drop_privileges(char* username, char *groupname)
         group = getgrnam(groupname);
         if (group == NULL) {
             if (errno) {
-                fprintf(stderr, "Error: Could not get GID for group '%s': %s\n", groupname, strerror(errno));
+                logger(LOG_LEVEL_ERR, "Could not get GID for group '%s': %s",
+                    groupname, strerror(errno));
             } else {
-                fprintf(stderr, "Error: Nonexistent group '%s'\n", groupname);
+                logger(LOG_LEVEL_ERR, "Nonexistent group '%s'", groupname);
             }
             return -1;
         }
 
         if (setgid(group->gr_gid) < 0) {
-            fprintf(stderr, "Error: Could not drop privileges to group '%s' (GID %d): %s\n",
+            logger(LOG_LEVEL_ERR, "Could not drop privileges to group '%s' (GID %d): %s",
                 groupname, group->gr_gid, strerror(errno));
             return -1;
         }
@@ -83,15 +86,16 @@ drop_privileges(char* username, char *groupname)
         passwd = getpwnam(username);
         if (passwd == NULL) {
             if (errno) {
-                fprintf(stderr, "Error: Could not get GID for user '%s': %s\n", username, strerror(errno));
+                logger(LOG_LEVEL_ERR, "Could not get GID for user '%s': %s",
+                    username, strerror(errno));
             } else {
-                fprintf(stderr, "Error: Nonexistent user '%s'\n", username);
+                logger(LOG_LEVEL_ERR, "Nonexistent user '%s'", username);
             }
             return -1;
         }
 
         if (setuid(passwd->pw_uid) < 0) {
-            fprintf(stderr, "Error: Could not drop privileges to user '%s' (UID %d): %s\n",
+            logger(LOG_LEVEL_ERR, "Could not drop privileges to user '%s' (UID %d): %s",
                 username, passwd->pw_uid, strerror(errno));
             return -1;
         }
@@ -110,13 +114,13 @@ daemonize(char *pidfile)
     int statusfds[2];
 
     if (pipe(statusfds) < 0) {
-        perror("Error: Could not create status pipe");
+        logger(LOG_LEVEL_ERR, "Could not create status pipe: %s", strerror(errno));
         return -1;
     }
 
     pid = fork();
     if (pid < 0) {
-        perror("Error: Could not create child process");
+        logger(LOG_LEVEL_ERR, "Could not create child process: %s", strerror(errno));
         return -1;
     } else if (pid > 0) {
         close(statusfds[1]);
@@ -129,10 +133,10 @@ daemonize(char *pidfile)
                 close(statusfds[0]);
 
                 if (len == 0) {
-                    fprintf(stderr, "Error: Could not read daemon status, pipe broken\n");
+                    logger(LOG_LEVEL_ERR, "Could not read daemon status, pipe broken");
                     return -1;
                 } else if (len == -1) {
-                    perror("Error: Could not read daemon status");
+                    logger(LOG_LEVEL_ERR, "Could not read daemon status: %s", strerror(errno));
                     return -1;
                 }
 
@@ -143,62 +147,62 @@ daemonize(char *pidfile)
                     break;
 
                 case DAEMON_ERROR_PIDFILE_CREATE:
-                    fprintf(stderr, "Error: Could not create pid file '%s': %s\n",
+                    logger(LOG_LEVEL_ERR, "Could not create pid file '%s': %s",
                         pidfile, strerror(status.errnum));
                     break;
 
                 case DAEMON_ERROR_PIDFILE_LOCK:
-                    fprintf(stderr, "Error: Could not lock pidfile '%s': %s\n",
+                    logger(LOG_LEVEL_ERR, "Could not lock pidfile '%s': %s",
                         pidfile, strerror(status.errnum));
                     break;
 
                 case DAEMON_ERROR_CHDIR:
-                    fprintf(stderr, "Error: Could not change directory to '/': %s\n",
+                    logger(LOG_LEVEL_ERR, "Could not change directory to '/': %s",
                         strerror(status.errnum));
                     break;
 
                 case DAEMON_ERROR_STDIN_CLOSE:
-                    fprintf(stderr, "Error: Could not close standard input: %s\n",
+                    logger(LOG_LEVEL_ERR, "Could not close standard input: %s",
                         strerror(status.errnum));
                     break;
 
                 case DAEMON_ERROR_STDOUT_CLOSE:
-                    fprintf(stderr, "Error: Could not close standard output: %s\n",
+                    logger(LOG_LEVEL_ERR, "Could not close standard output: %s",
                         strerror(status.errnum));
                     break;
 
                 case DAEMON_ERROR_STDERR_CLOSE:
-                    fprintf(stderr, "Error: Could not close standard error: %s\n",
+                    logger(LOG_LEVEL_ERR, "Could not close standard error: %s",
                         strerror(status.errnum));
                     break;
 
                 case DAEMON_ERROR_STDIN_OPEN:
-                    fprintf(stderr, "Error: Could not open '/dev/null' as standard input: %s\n",
+                    logger(LOG_LEVEL_ERR, "Could not open '/dev/null' as standard input: %s",
                         strerror(status.errnum));
                     break;
 
                 case DAEMON_ERROR_STDOUT_OPEN:
-                    fprintf(stderr, "Error: Could not open '/dev/null' as standard output: %s\n",
+                    logger(LOG_LEVEL_ERR, "Could not open '/dev/null' as standard output: %s",
                         strerror(status.errnum));
                     break;
 
                 case DAEMON_ERROR_STDERR_OPEN:
-                    fprintf(stderr, "Error: Could not open '/dev/null' as standard error: %s\n",
+                    logger(LOG_LEVEL_ERR, "Could not open '/dev/null' as standard error: %s",
                         strerror(status.errnum));
                     break;
 
                 default:
-                    fprintf(stderr, "Error: Unknown error while launching daemon\n");
+                    logger(LOG_LEVEL_ERR, "Unknown error while launching daemon");
                     break;
                 }
 
                 return -1;
             } else {
-                fprintf(stderr, "Error: Could not create a new process group and fork daemon\n");
+                logger(LOG_LEVEL_ERR, "Could not create a new process group and fork daemon");
                 return -1;
             }
         } else {
-            fprintf(stderr, "Error: Could not wait for child process with PID %d: %s\n",
+            logger(LOG_LEVEL_ERR, "Could not wait for child process with PID %d: %s",
                 pid, strerror(errno));
             return -1;
         }
@@ -207,14 +211,14 @@ daemonize(char *pidfile)
     /* Child process starts here */
 
     if (setsid() < 0) {
-        perror("Error: Could not create new session");
+        logger(LOG_LEVEL_ERR, "Could not create new session: %s", strerror(errno));
         /* Signal parent by exiting with failure */
         exit(EXIT_FAILURE);
     }
 
     pid = fork();
     if (pid < 0) {
-        perror("Error: Could not create grandchild process");
+        logger(LOG_LEVEL_ERR, "Could not create grandchild process: %s", strerror(errno));
         /* Signal parent by exiting with failure */
         exit(EXIT_FAILURE);
     } else if (pid > 0) {

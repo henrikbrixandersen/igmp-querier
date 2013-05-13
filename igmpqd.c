@@ -36,6 +36,7 @@
 #include <unistd.h>
 
 #include "daemon.h"
+#include "logging.h"
 
 #define VERSION "0.2.0"
 
@@ -48,6 +49,7 @@ typedef struct igmpqd_options {
     int   debug;
     int   daemonize;
     int   help;
+    int   use_syslog;
     int   version;
     long  interval;
     char *username;
@@ -58,7 +60,7 @@ typedef struct igmpqd_options {
 void
 usage(char *command)
 {
-    printf("usage: %s [-dfhv] [-m MGROUP] [-u USER] [-s INTERVAL] [-p PIDFILE]\n",
+    printf("usage: %s [-dfhlv] [-m MGROUP] [-u USER] [-s INTERVAL] [-p PIDFILE]\n",
         command);
 }
 
@@ -68,7 +70,7 @@ parse_command_line(int argc, char **argv, igmpqd_options_t *options)
     char *endptr = NULL;
     int c;
 
-    while ((c = getopt(argc, argv, "dfg:hp:s:u:v")) != -1) {
+    while ((c = getopt(argc, argv, "dfg:hlp:s:u:v")) != -1) {
         switch (c) {
         case 'd':
             options->debug = 1;
@@ -84,6 +86,10 @@ parse_command_line(int argc, char **argv, igmpqd_options_t *options)
 
         case 'h':
             options->help = 1;
+            break;
+
+        case 'l':
+            options->use_syslog = 1;
             break;
 
         case 'p':
@@ -175,10 +181,13 @@ main(int argc, char **argv)
         exit(EXIT_SUCCESS);
     }
 
+    /* Initialize logging */
+    init_logger(options->use_syslog);
+
     /* Create socket */
     sockfd = socket(PF_INET, SOCK_RAW, IPPROTO_IGMP);
     if (sockfd == -1) {
-        perror("Error: Could not open raw socket");
+        logger(LOG_LEVEL_ERR, "Could not open raw socket: %s", strerror(errno));
         goto fail;
     }
 
@@ -190,12 +199,12 @@ main(int argc, char **argv)
     /* Multicast groups */
     mgroup.s_addr = inet_addr("0.0.0.0");
     if (mgroup.s_addr == INADDR_NONE) {
-        fprintf(stderr, "Error: Invalid multicast group '0.0.0.0'\n");
+        logger(LOG_LEVEL_ERR, "Invalid multicast group '0.0.0.0'");
         goto fail;
     }
     allhosts.s_addr = inet_addr("224.0.0.1");
     if (allhosts.s_addr == INADDR_NONE) {
-        fprintf(stderr, "Error: Invalid multicast group '224.0.0.1'\n");
+        logger(LOG_LEVEL_ERR, "Invalid multicast group '224.0.0.1'");
         goto fail;
     }
 
@@ -221,7 +230,7 @@ main(int argc, char **argv)
     /* Transmit loop */
     while (1) {
         if (sendto(sockfd, &igmp, sizeof(igmp), 0, (struct sockaddr*)&dst, sizeof(dst)) == -1) {
-            perror("Error: Could not send IGMP query");
+            logger(LOG_LEVEL_ERR, "Could not send IGMP query: %s", strerror(errno));
         }
         sleep(options->interval);
     }

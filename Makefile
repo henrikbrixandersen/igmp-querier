@@ -4,8 +4,8 @@ RM=rm -f
 CFLAGS?=-Wall
 
 BINARY=igmpqd
-SRCS=igmpqd.c daemon.c
-HDRS=daemon.h
+SRCS=igmpqd.c daemon.c logging.c
+HDRS=daemon.h logging.h
 
 all: $(BINARY)
 
