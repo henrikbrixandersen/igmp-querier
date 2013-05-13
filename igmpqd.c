@@ -144,7 +144,8 @@ cksum(void *buf, size_t len)
     if (len % 2) {
         cksum += ((uint8_t*)buf)[len - 1];
     }
-    cksum = (cksum & 0xFFFF) + (cksum >> 16);
+    cksum = (cksum >> 16) + (cksum & 0xFFFF);
+    cksum = cksum + (cksum >> 16);
 
     return (~cksum & 0xFFFF);
 }
