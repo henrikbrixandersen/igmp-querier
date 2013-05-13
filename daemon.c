@@ -242,6 +242,7 @@ daemonize(char *pidfile)
 
         if (lockf(pidfd, F_TLOCK, 0) < 0) {
             status.error = DAEMON_ERROR_PIDFILE_LOCK;
+            close(pidfd);
             goto out;
         }
 
